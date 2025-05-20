@@ -5,6 +5,8 @@ import {
 } from '@mantine/core';
 import { IconPlus } from '@tabler/icons-react';
 import axios from 'axios';
+import ReactMarkdown from 'react-markdown';
+
 
 const API_BASE = 'http://192.168.31.132:3100';
 const RAG_BASE = 'http://192.168.31.132:8500';
@@ -126,7 +128,8 @@ function App() {
             {chatHistory.map((msg, i) => (
               <Card key={i} shadow="sm">
                 <Text size="sm" c="dimmed"><b>你：</b> {msg.user}</Text>
-                <Text size="sm"><b>AI：</b> {msg.assistant}</Text>
+                <Text size="sm" fw={700}>AI：</Text>
+                <ReactMarkdown>{msg.assistant}</ReactMarkdown>
                 <Button mt="sm" size="xs"variant="light" onClick={() => rememberAnswer(`User: ${msg.user}\nAI: ${msg.assistant}`)}>
                   記住這段 Q&A
                 </Button>
