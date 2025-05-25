@@ -1,27 +1,69 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Container, Title, Select, Button, Textarea, Card, Text, Loader, Group,
-  Stack, Notification, ActionIcon, Paper, Grid, ScrollArea
+  Stack, Notification, ActionIcon, Paper, Grid, ScrollArea, Collapse
 } from '@mantine/core';
 import { IconPlus } from '@tabler/icons-react';
 import axios from 'axios';
 import ReactMarkdown from 'react-markdown';
 
+const API_BASE = 'http://192.168.31.130:3100';
+const RAG_BASE = 'http://192.168.31.130:8500';
 
-const API_BASE = 'http://192.168.31.132:3100';
-const RAG_BASE = 'http://192.168.31.132:8500';
+type ToolResult = {
+  toolName: string;
+  result: string;
+};
+
+type ChatMessage = {
+  user: string;
+  assistant: string;
+  tool?: ToolResult | null;
+};
+
+export function ToolResultAccordion({ toolName, result }: ToolResult) {
+  const [opened, setOpened] = useState(false);
+
+  return (
+    <>
+      <Button
+        size="xs"
+        mt="sm"
+        variant="subtle"
+        onClick={() => setOpened((o) => !o)}
+      >
+        🔧 工具 {toolName} 被觸發 {opened ? '▲ 收合' : '▼ 查看結果'}
+      </Button>
+
+      <Collapse in={opened}>
+        <Text
+          mt="xs"
+          size="xs"
+          style={{
+            fontFamily: 'monospace',
+            backgroundColor: '#f6f6f6',
+            padding: '0.5rem',
+            borderRadius: '6px',
+            whiteSpace: 'pre-wrap'
+          }}
+        >
+          {result}
+        </Text>
+      </Collapse>
+    </>
+  );
+}
 
 function App() {
-  const [models, setModels] = useState([]);
-  const [currentModel, setCurrentModel] = useState('');
-  const [tools, setTools] = useState([]);
+  const [models, setModels] = useState<string[]>([]);
+  const [currentModel, setCurrentModel] = useState<string>('');
+  const [tools, setTools] = useState<any[]>([]);
   const [message, setMessage] = useState('');
-  const [recallQuery, setRecallQuery] = useState('');
-  const [recallResults, setRecallResults] = useState([]);
+  const [recallResults, setRecallResults] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
-  const [chatHistory, setChatHistory] = useState([]);
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [error, setError] = useState('');
-  const fileInputRef = useRef(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     axios.get(`${API_BASE}/api/models`).then(res => {
@@ -39,7 +81,15 @@ function App() {
     setLoading(true);
     try {
       const res = await axios.post(`${API_BASE}/api/chat`, { message });
-      setChatHistory(prev => [...prev, { user: message, assistant: res.data.reply }]);
+
+      setChatHistory(prev => [
+        ...prev,
+        {
+          user: message,
+          assistant: res.data.reply,
+          tool: res.data.toolResult || null
+        }
+      ]);
       setMessage('');
     } catch (err) {
       setError('無法取得 AI 回覆');
@@ -53,7 +103,7 @@ function App() {
     setChatHistory([]);
   };
 
-  const uploadFile = async (file) => {
+  const uploadFile = async (file: File) => {
     if (!file) return;
     const formData = new FormData();
     formData.append('file', file);
@@ -68,13 +118,12 @@ function App() {
         const { success = 0, fail = 0, filename = '' } = res.data;
         alert(`檔案 ${filename} 已上傳 ${success} 筆，失敗 ${fail}`);
       }
-    } catch (e) {
+    } catch (e: any) {
       alert(`檔案上傳失敗：${e.message || e}`);
-    }    
+    }
   };
-  
 
-  const rememberAnswer = async (text) => {
+  const rememberAnswer = async (text: string) => {
     try {
       await axios.post(`${RAG_BASE}/remember`, {
         text,
@@ -88,7 +137,6 @@ function App() {
       alert('儲存失敗');
     }
   };
-
 
   return (
     <Container fluid>
@@ -116,7 +164,7 @@ function App() {
             data={models}
             value={currentModel}
             onChange={(value) => {
-              setCurrentModel(value);
+              setCurrentModel(value || '');
               axios.post(`${API_BASE}/api/model/select`, { model: value })
                 .then(() => console.log(`切換模型為 ${value}`))
                 .catch(() => setError('模型切換失敗'));
@@ -130,7 +178,16 @@ function App() {
                 <Text size="sm" c="dimmed"><b>你：</b> {msg.user}</Text>
                 <Text size="sm" fw={700}>AI：</Text>
                 <ReactMarkdown>{msg.assistant}</ReactMarkdown>
-                <Button mt="sm" size="xs"variant="light" onClick={() => rememberAnswer(`User: ${msg.user}\nAI: ${msg.assistant}`)}>
+
+                {msg.tool?.toolName && msg.tool?.result && (
+                  <ToolResultAccordion
+                    toolName={msg.tool.toolName}
+                    result={msg.tool.result}
+                  />
+                )}
+
+                <Button mt="sm" size="xs" variant="light" onClick={() =>
+                  rememberAnswer(`User: ${msg.user}\nAI: ${msg.assistant}`)}>
                   記住這段 Q&A
                 </Button>
               </Card>
@@ -166,7 +223,7 @@ function App() {
           <input
             type="file"
             ref={fileInputRef}
-            onChange={(e) => uploadFile(e.target.files[0])}
+            onChange={(e) => uploadFile(e.target.files?.[0])}
             style={{ display: 'none' }}
             accept="application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
           />
