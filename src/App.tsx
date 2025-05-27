@@ -18,7 +18,7 @@ type ToolResult = {
 type ChatMessage = {
   user: string;
   assistant: string;
-  tool?: ToolResult | null;
+  toolResults?: ToolResult[];
 };
 
 export function ToolResultAccordion({ toolName, result }: ToolResult) {
@@ -87,7 +87,7 @@ function App() {
         {
           user: message,
           assistant: res.data.reply,
-          tool: res.data.toolResult || null
+          toolResults: res.data.toolResults || []
         }
       ]);
       setMessage('');
@@ -179,12 +179,9 @@ function App() {
                 <Text size="sm" fw={700}>AI：</Text>
                 <ReactMarkdown>{msg.assistant}</ReactMarkdown>
 
-                {msg.tool?.toolName && msg.tool?.result && (
-                  <ToolResultAccordion
-                    toolName={msg.tool.toolName}
-                    result={msg.tool.result}
-                  />
-                )}
+                {msg.toolResults?.length > 0 && msg.toolResults.map((tool, idx) => (
+                  <ToolResultAccordion key={idx} toolName={tool.toolName} result={tool.result} />
+                ))}
 
                 <Button mt="sm" size="xs" variant="light" onClick={() =>
                   rememberAnswer(`User: ${msg.user}\nAI: ${msg.assistant}`)}>
