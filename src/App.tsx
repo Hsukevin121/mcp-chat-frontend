@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Container, Title, Select, Button, Textarea, Card, Text, Loader, Group,
-  Stack, Notification, ActionIcon, Paper, Grid, ScrollArea, Collapse
+  Stack, Notification, ActionIcon, Paper, Grid, ScrollArea, Collapse, SegmentedControl
 } from '@mantine/core';
-import { IconPlus } from '@tabler/icons-react';
+import { IconPlus, IconCode, IconMessage, IconRefresh } from '@tabler/icons-react';
 import axios from 'axios';
 import ReactMarkdown from 'react-markdown';
 
@@ -63,6 +63,7 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [error, setError] = useState('');
+  const [promptMode, setPromptMode] = useState<string>('full_tool_mode');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -138,6 +139,20 @@ function App() {
     }
   };
 
+  const switchPromptMode = async (mode: string) => {
+    try {
+      setLoading(true);
+      await axios.post(`${API_BASE}/api/chat/mode`, { mode });
+      setPromptMode(mode);
+      await newChat();
+      console.log(`已切換為 ${mode} 模式`);
+    } catch (err) {
+      setError('切換對話模式失敗');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <Container fluid>
       <Title mb="md">RT Lab Chatroom</Title>
@@ -159,18 +174,44 @@ function App() {
         </Grid.Col>
 
         <Grid.Col span={9}>
-          <Select
-            label="選擇模型"
-            data={models}
-            value={currentModel}
-            onChange={(value) => {
-              setCurrentModel(value || '');
-              axios.post(`${API_BASE}/api/model/select`, { model: value })
-                .then(() => console.log(`切換模型為 ${value}`))
-                .catch(() => setError('模型切換失敗'));
-            }}
-            mb="md"
-          />
+          <Group position="apart" mb="md">
+            <Select
+              label="選擇模型"
+              data={models}
+              value={currentModel}
+              onChange={(value) => {
+                setCurrentModel(value || '');
+                axios.post(`${API_BASE}/api/model/select`, { model: value })
+                  .then(() => console.log(`切換模型為 ${value}`))
+                  .catch(() => setError('模型切換失敗'));
+              }}
+              style={{ width: '200px' }}
+            />
+            
+            <Stack spacing="xs">
+              <Text size="sm">對話模式</Text>
+              <SegmentedControl
+                data={[
+                  { label: '工具模式', value: 'full_tool_mode' },
+                  { label: 'JSON模式', value: 'alpha_only' }
+                ]}
+                value={promptMode}
+                onChange={(value) => switchPromptMode(value)}
+                size="sm"
+              />
+            </Stack>
+          </Group>
+
+          <Card shadow="xs" mb="md" p="xs" style={{ 
+            backgroundColor: promptMode === 'alpha_only' ? '#f8f9fa' : '#eaf6f6' 
+          }}>
+            <Text size="xs" c="dimmed">
+              {promptMode === 'alpha_only' 
+                ? '🔢 JSON模式：純計算 α 值，輸出標準 JSON 格式，不觸發工具' 
+                : '🔧 工具模式：支援完整對話，可呼叫工具進行系統操作'
+              }
+            </Text>
+          </Card>
 
           <Stack>
             {chatHistory.map((msg, i) => (
@@ -197,7 +238,10 @@ function App() {
             </ActionIcon>
 
             <Textarea
-              placeholder="輸入訊息..."
+              placeholder={promptMode === 'alpha_only' 
+                ? '輸入網路 KPI 資料來計算 α 值...' 
+                : '輸入訊息...'
+              }
               value={message}
               onChange={(e) => setMessage(e.currentTarget.value)}
               onKeyDown={(e) => {
@@ -225,9 +269,16 @@ function App() {
             accept="application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
           />
 
-          <Button variant="outline" fullWidth mt="md" onClick={newChat}>
-            新對話
-          </Button>
+          <Group position="center" mt="md">
+            <Button 
+              variant="outline" 
+              leftIcon={<IconRefresh size={16} />}
+              onClick={newChat}
+              style={{ flex: 1 }}
+            >
+              新對話
+            </Button>
+          </Group>
 
           <Stack mt="sm">
             {recallResults.map((res, idx) => (
